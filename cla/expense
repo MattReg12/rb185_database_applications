@@ -1,0 +1,7 @@
+#! /usr/bin/env ruby
+
+require 'pg'
+
+results = PG.connect(dbname: 'business')
+
+
