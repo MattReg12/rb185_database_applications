@@ -1,7 +1,137 @@
 #! /usr/bin/env ruby
 
 require 'pg'
+require 'pry'
 
-results = PG.connect(dbname: 'business')
+HELP = <<~HEREDOC
+  Commands:
+
+  add AMOUNT MEMO - record a new expense
+  clear - delete all expenses
+  list - list all expenses
+  delete NUMBER - remove expense with id NUMBER
+  search QUERY - list expenses with a matching memo field
+  HEREDOC
+
+class ExpenseData
+  attr_reader :connection
+
+  def initialize(dbname)
+    @connection = PG::Connection.new(dbname: dbname)
+  end
+
+  def list_expenses
+    result = connection.exec 'SELECT * FROM expenses;'
+
+    case expense_count
+    when 0
+      puts 'There are no expenses.'
+    when 1
+      puts 'There is 1 expense.'
+      display_results(result)
+      display_total
+    else
+      puts "There are #{expense_count} expenses."
+      display_results(result)
+      display_total
+    end
+  end
+
+  def expense_count
+    count = connection.exec 'SELECT count(id) FROM expenses'
+    count.values.first.first.to_i
+  end
+
+  def expense_sum
+    sum = connection.exec 'SELECT sum(amount) FROM expenses;'
+    sum.values.first.first
+  end
+
+  def add_expense(args)
+    begin
+      connection.exec_params "INSERT INTO expenses (amount, memo) VALUES($1, $2);", [args.fetch(1), args.fetch(2)]
+    rescue IndexError
+      puts 'You must provide an amount or memo'
+    end
+  end
+
+  def search_expense(keyword)
+    if keyword.to_i.to_s == keyword
+      sql = "SELECT * FROM expenses WHERE id = $1"
+      result = connection.exec_params sql, [keyword]
+    else
+      sql = "SELECT * FROM expenses WHERE memo ILIKE $1"
+      result = connection.exec_params sql, ["%#{keyword}%"]
+    end
+  end
+
+  def delete_expense(id)
+    sql = "DELETE FROM expenses WHERE id = $1"
+    connection.exec_params sql, [id]
+  end
+
+  def clear_expenses
+    puts 'This will remove all expenses. Are you sure? (y/n)'
+    answer = $stdin.gets.chomp
+    return unless answer.downcase == 'y'
+
+    connection.exec 'DELETE FROM expenses;'
+    puts 'All expenses have been deleted'
+  end
+
+  def display_results(result)
+    result.each do |tuple|
+      columns = [ tuple["id"].rjust(3),
+                  tuple["created_on"].rjust(10),
+                  tuple["amount"].rjust(12),
+                  tuple["memo"] ]
+      puts columns.join(" | ")
+    end
+  end
+
+  def display_total
+    puts '--------------------------------------------------'
+    puts "Total                     #{expense_sum}"
+  end
+
+  def display_deletion(deleted)
+    puts "The following expense has been deleted:\n"
+    display_results(deleted)
+  end
+end
 
 
+class CLI
+  attr_reader :program
+
+  def initialize
+    @program = ExpenseData.new('business')
+  end
+
+  def run(args)
+    case args.first
+    when 'list'
+      program.list_expenses
+    when 'add'
+      program.add_expense(args)
+    when 'search'
+      result = program.search_expense(args[1])
+      program.display_results(result)
+    when 'delete'
+      deleted = program.search_expense(args[1])
+      if deleted.values.empty?
+        puts "There is no expense with id '#{args[1]}'"
+        return
+      end
+      program.delete_expense(args[1])
+      program.display_deletion(deleted)
+    when 'clear'
+      program.clear_expenses
+    else
+      puts HELP
+    end
+  end
+end
+
+cli = CLI.new
+cli.run(ARGV)
