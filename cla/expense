@@ -100,7 +100,6 @@ class ExpenseData
   end
 end
 
-
 class CLI
   attr_reader :program
 
