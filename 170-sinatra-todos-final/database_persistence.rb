@@ -1,13 +1,19 @@
 require 'pg'
 
 class DatabasePersistence
-  def initialize
+  def initialize(logger)
     @db = PG.connect(dbname: 'todos')
+    @logger = logger
+  end
+
+  def query(statement, *params)
+    @logger.info "#{statement}: #{params}"
+    @db.exec_params statement, params
   end
 
   def all_lists
     sql = 'SELECT * FROM lists;'
-    result = @db.exec(sql)
+    result = query(sql)
 
     result.map do |tuple|
       {id: tuple['id'], name: tuple['name'], todos: []}
@@ -29,7 +35,21 @@ class DatabasePersistence
   end
 
   def find_list(id)
-    # @session[:lists].find{ |list| list[:id] == id }
+    sql = "SELECT * FROM lists WHERE id = $1"
+    result = query(sql, id)
+    tuple = result.first
+    {id: tuple['id'], name: tuple['name'], todos: todos_in_list(id)}
+  end
+
+  def todos_in_list(list_id)
+    sql = "SELECT * FROM lists l JOIN todos t ON t.list_id = l.id WHERE l.id = $1"
+    result = query(sql, list_id)
+
+    x = result.map do |tuple|
+      {name: tuple['name'], completed: convert_to_bool(tuple['completed'])}
+    end
+    p x
+    x
   end
 
   def log_error(error)
@@ -62,5 +82,11 @@ class DatabasePersistence
     # list = find_list(list_id)
     # id = next_element_id(list[:todos])
     # list[:todos] << { id: id, name: todo_name, completed: false }
+  end
+
+  private
+
+  def convert_to_bool(string)
+    string == 't'
   end
 end

@@ -2,8 +2,6 @@ class SessionPersistence
   def initialize(session)
     @session = session
     @session[:lists] ||= []
-    @session[:error_message] = nil
-    @session[:success_message] = nil
   end
 
   def all_lists
@@ -26,14 +24,6 @@ class SessionPersistence
 
   def find_list(id)
     @session[:lists].find{ |list| list[:id] == id }
-  end
-
-  def log_error(error)
-    @session[:error_message] = error
-  end
-
-  def log_success(success)
-    @session[:success_message] = success
   end
 
   def update_todo_status(list_id, todo_id, new_status)

@@ -3,7 +3,7 @@ require "sinatra/reloader"
 require "sinatra/content_for"
 require "tilt/erubis"
 
-require_relative 'session_persistence'
+require_relative 'database_persistence'
 
 configure do
   enable :sessions
@@ -47,7 +47,7 @@ def load_list(id)
   list = @storage.find_list(id)
   return list if list
 
-  @storage.log_error("The specified list was not found.")
+  session[:error] = "The specified list was not found."
   redirect "/lists"
 end
 
@@ -68,7 +68,7 @@ def error_for_todo(name)
 end
 
 before do
-  @storage = DatabasePersistence.new
+  @storage = DatabasePersistence.new(logger)
 end
 
 get "/" do
@@ -92,11 +92,11 @@ post "/lists" do
 
   error = error_for_list_name(list_name)
   if error
-    @storage.log_error(error)
+    session[:error] = error
     erb :new_list, layout: :layout
   else
     @storage.create_new_list(list_name)
-    @storage.log_success("The list has been created.")
+    session[:success] = "The list has been created."
     redirect "/lists"
   end
 end
@@ -123,11 +123,11 @@ post "/lists/:id" do
 
   error = error_for_list_name(list_name)
   if error
-    @storage.log_error(error)
+    session[:error] = error
     erb :edit_list, layout: :layout
   else
     @storage.update_list_name(id, list_name)
-    @storage.log_success("The list has been updated.")
+    session[:success] = "The list has been updated."
     redirect "/lists/#{id}"
   end
 end
@@ -136,7 +136,7 @@ end
 post "/lists/:id/destroy" do
   id = params[:id].to_i
   @storage.delete_list(id)
-  @storage.log_success("The list has been deleted.")
+  session[:success] = "The list has been deleted."
   if env["HTTP_X_REQUESTED_WITH"] == "XMLHttpRequest"
     "/lists"
   else
@@ -152,11 +152,11 @@ post "/lists/:list_id/todos" do
 
   error = error_for_todo(text)
   if error
-    @storage.log_error(error)
+    session[:error] = error
     erb :list, layout: :layout
   else
     @storage.create_new_todo(@list_id, text)
-    @storage.log_success("The todo was added.")
+    session[:success] = "The todo was added."
     redirect "/lists/#{@list_id}"
   end
 end
@@ -171,7 +171,7 @@ post "/lists/:list_id/todos/:id/destroy" do
   if env["HTTP_X_REQUESTED_WITH"] == "XMLHttpRequest"
     status 204
   else
-    @storage.log_success("The todo has been deleted.")
+    session[:success] = "The todo has been deleted."
     redirect "/lists/#{@list_id}"
   end
 end
@@ -185,7 +185,7 @@ post "/lists/:list_id/todos/:id" do
   status = params[:completed] == "true"
   @storage.update_todo_status(@list_id, todo_id, status)
 
-  @storage.log_success("The todo has been updated.")
+  session[:success] = "The todo has been updated."
   redirect "/lists/#{@list_id}"
 end
 
@@ -196,6 +196,6 @@ post "/lists/:id/complete_all" do
 
   @storage.mark_all_todos_as_completed(list_id)
 
-  @storage.log_success("All todos have been completed.")
+  session[:success] = "All todos have been completed."
   redirect "/lists/#{@list_id}"
 end
