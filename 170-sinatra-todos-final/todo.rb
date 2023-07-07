@@ -1,7 +1,7 @@
 require "sinatra"
-require "sinatra/reloader"
 require "sinatra/content_for"
 require "tilt/erubis"
+require 'pry'
 
 require_relative 'database_persistence'
 
@@ -9,6 +9,11 @@ configure do
   enable :sessions
   set :session_secret, 'secret'
   set :erb, :escape_html => true
+end
+
+configure(:development) do
+  require "sinatra/reloader"
+  also_reload "database_persistence.rb"
 end
 
 helpers do
@@ -167,7 +172,7 @@ post "/lists/:list_id/todos/:id/destroy" do
   @list = load_list(@list_id)
 
   todo_id = params[:id].to_i
-  @storage.delete_todo_from_list(@list_id, todo_id)
+  @storage.delete_todo_from_list(todo_id)
   if env["HTTP_X_REQUESTED_WITH"] == "XMLHttpRequest"
     status 204
   else
@@ -194,7 +199,7 @@ post "/lists/:id/complete_all" do
   @list_id = params[:id].to_i
   @list = load_list(@list_id)
 
-  @storage.mark_all_todos_as_completed(list_id)
+  @storage.mark_all_todos_as_completed(@list_id)
 
   session[:success] = "All todos have been completed."
   redirect "/lists/#{@list_id}"
