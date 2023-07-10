@@ -11,6 +11,10 @@ configure do
   set :erb, :escape_html => true
 end
 
+after do
+  @storage.disconnect
+end
+
 configure(:development) do
   require "sinatra/reloader"
   also_reload "database_persistence.rb"

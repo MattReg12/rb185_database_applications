@@ -2,7 +2,11 @@ require 'pg'
 
 class DatabasePersistence
   def initialize(logger)
-    @db = PG.connect(dbname: 'todos')
+    @db = if Sinatra::Base.production?
+      PG.connect(ENV['DATABASE_URL'])
+    else
+      PG.connect(dbname: "todos")
+    end
     @logger = logger
   end
 
@@ -71,6 +75,10 @@ class DatabasePersistence
   def create_new_todo(list_id, todo_name)
     sql = 'INSERT INTO todos (list_id, name) VALUES ($1, $2)'
     query(sql, list_id, todo_name)
+  end
+
+  def disconnect
+    @db.close
   end
 
   private
